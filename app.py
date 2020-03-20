@@ -37,11 +37,8 @@ from controls import NLCD_2011, DOYLIST
 PATH = pathlib.Path(__file__).parent
 DATA_PATH = PATH.joinpath('data').resolve()
 
-# TODO: meta_tags came from oil and gas demo. Double-check their use
-app = dash.Dash(
-    __name__, meta_tags= [{'name': 'viewport',
-                           'content': 'width=device-width'}]
-)
+# TODO: Verify this is the correct way to provide external stylesheets vs an asset folder
+app = dash.Dash(__name__, external_stylesheets=['https://cdn.rawgit.com/plotly/dash-app-stylesheets/2d266c578d2a6e8850ebce48fdb52759b2aef506/stylesheet-oil-and-gas.css'])
 
 server = app.server
 
@@ -53,9 +50,6 @@ if not mapbox_token:
 # Load datasets
 df = pd.read_csv(DATA_PATH.joinpath('lcDF.csv'), index_col=0, parse_dates=['variable'])
 df.columns = ['PointID', 'LC_code', 'reference_date', 'ndvi', 'lon', 'lat']
-
-# Boostrap CSS
-app.css.append_css({'external_url': 'https://cdn.rawgit.com/plotly/dash-app-stylesheets/2d266c578d2a6e8850ebce48fdb52759b2aef506/stylesheet-oil-and-gas.css'})  # noqa: E501
 
 layout = dict(
     autosize=True,
@@ -180,7 +174,8 @@ def gen_map(df):
     }
 
 # Layout
-app.layout = html.Div([
+app.layout = html.Div(
+    [
     # Title - Row
     html.Div(
         [
@@ -219,7 +214,7 @@ app.layout = html.Div([
             html.Div(
                 [
                     html.P('Filter by Day Of Year (or select DOY in line plot):',
-                    className = 'control_label',
+                        className = 'control_label',
                     ),
                     # TODO: This might not be the best since DOYs could change with different satellite data
                     dcc.Slider(
@@ -238,66 +233,107 @@ app.layout = html.Div([
             html.Div(
                 [
                     html.P('Filter by Land Cover Class:',
-                           className='control_label'),
+                        className='control_label',
+                    ),
                     dcc.Dropdown(
                         id='lc_classes',
                         options=lc_options,
                         multi=True,
-                        value=list(NLCD_2011.keys()),
+                        value=[lc_options[i]['value'] for i in [7, 8, 9, 11]],
+                        placeholder="Select a land cover class",
                         className='dcc_control',
                     )
                 ],
                 className='six columns',
-                style={'margin-top': '10'}
+                style={'margin-top': '8'}
             ),
         ],
         className='row'
     ),
 
-    # Map + table + Histogram
+    # Table + Timeseries plot
     html.Div(
         [
             html.Div(
                 [
-                    dcc.Graph(id='map-graph',
-                              animate=True,
-                              style={'margin-top': '20'})
-                ], className = "six columns"
-            ),
-            html.Div(
-                [
                     dt.DataTable(
-                        columns=df.columns,
+                        columns=[{'name': i, 'id': i, 'selectable': True} for i in df.columns],
                         data=df.to_dict('records'),
                         filter_action='native',
                         column_selectable='single',
                         row_selectable='multi',
                         sort_action='native',
                         sort_mode='multi',
+                        selected_columns=[],
                         selected_rows=[],
-                        id='datatable'),
+                        page_action='native',
+                        page_size=15,
+                        id='datatable',
+                    ),
                 ],
-                style=layout_right,
-                className="six columns"
+                # style=layout_right,
+                style={'margin-top': '20'},
+                className="four columns"
             ),
+
             html.Div(
                 [
-                    dcc.Graph(id="timeplot")
-                ],className="twelve columns")
-        ], className="row"
-    )
-], className='ten columns offset-by-one')
+                    dcc.Graph(id="timeplot",
+                    ),
+                ],
+                style={'margin-top': '20'},
+                # style=layout_right,
+                className="four columns"
+            ),
 
-# # Callbacks and functions
-# @app.callback(
-#     Output('datatable', 'rows'),
-#     [dash.dependencies.Input('doy-slider', 'values'),
-#     dash.dependencies.Input('lc_classes', 'value')])
-# def update_selected_row_indices(doy, lc_class):
-#     df_aux = df.copy()
-#
-#     # DOY filter
-#     df_aux = df_aux[df_aux['']]
+        ],
+        className="row"
+    ),
+
+    # Map
+     html.Div(
+        [
+            dcc.Graph(id='map-graph',
+                        animate=True,
+            ),
+        ],
+         className = "twelve columns"
+    ),
+],)# className='ten columns offset-by-one')
+
+# Callbacks and functions
+@app.callback(
+    Output('map-graph', 'figure'),
+    [Input('datatable', 'selected_rows'),
+     Input('datatable', 'selected_row_ids')])
+def map_selection(selected_rows, selected_row_ids):
+    aux = pd.DataFrame(selected_rows)
+    temp_df = aux.iloc[selected_row_ids, :]
+    if len(selected_row_ids) == 0:
+        return gen_map(aux)
+    return gen_map(temp_df)
+
+
+@app.callback(
+    Output('datatable', 'style_data_conditional'),
+    [Input('datatable', 'selected_columns')]
+)
+def update_styles(selected_columns):
+    return [{
+        'if': { 'column_id': i },
+        'background_color': '#D2F3FF'
+    } for i in selected_columns]
+
+
+@app.callback(
+    Output('datatable', 'selected_rows'),
+    [dash.dependencies.Input('doy-slider', 'value'),
+    dash.dependencies.Input('lc_classes', 'value')])
+def update_selected_row_indices(doy, lc_class):
+    df_aux = df.copy()
+
+    # # DOY filter
+    # df_aux = df_aux[df_aux['']]
 
 
 if __name__ == '__main__':
