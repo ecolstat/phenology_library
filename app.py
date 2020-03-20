@@ -304,11 +304,27 @@ app.layout = html.Div(
 # Callbacks and functions
 @app.callback(
     Output('map-graph', 'figure'),
-    [Input('datatable', 'selected_rows'),
-     Input('datatable', 'selected_row_ids')])
-def map_selection(selected_rows, selected_row_ids):
+    [Input('datatable', 'derived_virtual_row_ids'),
+     Input('datatable', 'selected_row_ids'),
+     Input('datatable', 'active_cell')])
+def map_selection(row_ids, selected_row_ids, active_cell):
+    selected_id_set = set(selected_row_ids or [])
+
+    if row_ids is None:
+        dff = df
+
+        row_ids = df['id']
+    else:
+        dff = df.loc[row_ids]
+
+    active_row_id = active_cell['row_id'] if active_cell else None
+
+    colors = ['#FF69B4' if id == active_row_id
+              else '#7FDBFF' if id in selected_id_set
+              else '#0074D9' for id in row_ids]
+# TODO: Pick up here. I think this section needs work still
     aux = pd.DataFrame(selected_rows)
-    temp_df = aux.iloc[selected_row_ids, :]
+    temp_df = aux.loc[[selected_row_ids], :]
     if len(selected_row_ids) == 0:
         return gen_map(aux)
     return gen_map(temp_df)
