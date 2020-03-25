@@ -43,11 +43,10 @@ app = dash.Dash(__name__, external_stylesheets=['https://cdn.rawgit.com/plotly/d
 server = app.server
 
 # Load mapbox token
-mapbox_token = os.getenv('MAPBOX_TOKEN')
-if not mapbox_token:
-    token = open(".mapbox_token").read()
+mapboxAccessToken = open(".mapbox_token", 'r').read()
+mapboxAccessToken = mapboxAccessToken.replace('"', '')
 
-# Load datasets
+# Load datasets: Converted in external script from goeJSON to csv with x,y columns
 df = pd.read_csv(DATA_PATH.joinpath('lcDF.csv'), index_col=0, parse_dates=['variable'])
 df.columns = ['PointID', 'LC_code', 'reference_date', 'ndvi', 'lon', 'lat']
 
@@ -85,7 +84,7 @@ lc_options = [
 
 doy_to_ref_date = dict(zip(DOYLIST, df.reference_date.unique()))
 
-# TODO: if the previous variable works, delete this.
+# TODO: if the previous variables work, delete this.
 # # Controls (dropdowns)
 # group = ['All']
 # group = group + df.LC_code.unique()
@@ -184,7 +183,7 @@ app.layout = html.Div(
                 style={'font-family': 'Helvetica',
                        "margin-top": "25",
                        "margin-bottom": "0"},
-                className='eight columns',
+                className='eight columns',  # This is an html 'class' in Dash
             ),
             # html.Img(
             #     src="http://static1.squarespace.com/static/546fb494e4b08c59a7102fbc/t/591e105a6a496334b96b8e47/1497495757314/.png",
@@ -297,7 +296,7 @@ app.layout = html.Div(
                         animate=True,
             ),
         ],
-         className = "twelve columns"
+         className = "twelve columns"  # Maybe classname = 'row'?
     ),
 ],)# className='ten columns offset-by-one')
 
