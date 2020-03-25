@@ -20,6 +20,9 @@ import os
 import copy
 import pandas as pd
 import dash_bootstrap_components as dbc
+import datashader as ds
+from datashader import transfer_functions as tf
+
 
 # Multi-dropdown options
 from controls import NLCD_2011, DOYLIST, DOYDICT, DOY2DATETIMEDICT
@@ -37,8 +40,9 @@ server = app.server
 # Load mapbox token
 # mapboxAccessToken = os.getenv('MAPBOX_TOKEN')
 # if not mapboxAccessToken:
-mapboxAccessToken = open(".mapbox_token", 'r').read()
-mapboxAccessToken = mapboxAccessToken.replace('"', '')
+mbt = open(".mapbox_token", 'r')
+mapboxAccessToken = mbt.read().replace('"', '')
+mbt.close()
 
 # Load datasets: Converted in external script from goeJSON to csv with x,y columns
 df = pd.read_csv(DATA_PATH.joinpath('lcDF.csv'), index_col=0, parse_dates=['variable'])
@@ -75,8 +79,8 @@ controls = dbc.Row(
                         max=353,
                         step=16,
                         value=177,
-                        tooltip={'always_visible': True, 'placement':
-                            'topLeft'},
+                        tooltip={'always_visible': False, 'placement':
+                            'bottomLeft'},
                         updatemode='drag'
                     ),
                 ]
@@ -110,10 +114,12 @@ layout = dict(
             lon=-74.296787,  # manually copied from the csv lon
             lat=41.12487  # manually copied from the csv lat
         ),
+        # pitch=30,
         zoom=6,
     )
 )
 
+# Function for generating the map
 def gen_map(map_data):
     return {
         "data": [
@@ -121,9 +127,14 @@ def gen_map(map_data):
                 'type': 'scattermapbox',
                 'lat': list(map_data['lat']),
                 'lon': list(map_data['lon']),
-                'text': list(map_data['ndvi']),
+                'text': list(map_data['PointID']),
+                'customdata': list(map_data['ndvi']),
+
+                'hovertemplate':
+                    "Point ID: <b>%{text}</b><br><br>" +
+                    "NDVI: <b>%{customdata}</b><br>" +
+                    "<extra></extra>",
                 'mode': 'markers',
-                'name': map_data['PointID'],
                 'marker': {
                     'size': 6,
                     'opacity': 0.7,
@@ -134,6 +145,7 @@ def gen_map(map_data):
         "layout": layout
     }
 
+
 app.layout = dbc.Container(
     [
         html.H1('Phenology Library'),
@@ -141,8 +153,10 @@ app.layout = dbc.Container(
         # html.Hr(), #adds lines above and below the H1 and P
         dbc.Row(
             [
-                dbc.Col(dcc.Graph(
+                dbc.Col(
+                    dcc.Graph(
                         id='map-graph',
+                        # hoverData= {'points': [{'customdata': customdata}]}
                         # animate=True,
                     ),
                     md=12),
@@ -153,57 +167,16 @@ app.layout = dbc.Container(
         dbc.Row(
             [
                 dbc.Col(
-                    dcc.Graph(id='ndvi-by-doy-scatter'), md=6),
+                    dcc.Graph(
+                        id='ndvi-by-doy-scatter'
+                    ),
+                    md=6),
             ],
             align='left',
         ),
     ],
     fluid=True,
 )
-
-#     # Scatterplot
-#     html.Div(
-#         [
-#             html.Div(
-#                 [
-#                     dcc.Graph(
-#                         id='ndvi-by-doy-scatter',
-#                         figure={
-#                             'data': [
-#                                 dict(
-#                                     type='scattergl',
-#                                     x=df[df['LC_code'] == 41]['reference_date'],
-#                                     y=df[df['LC_code'] == 41]['ndvi'],
-#                                     text=df[df['LC_code'] == 41]['PointID'],
-#                                     mode='markers',
-#                                     opacity=0.7,
-#                                     marker={
-#                                         'size': 9,
-#                                         'line': {'width': 0.5,
-#                                                  'color': 'white'}
-#                                     },
-#                                     name=41
-#                                 )  # for i in df.LC_code.unique()
-#                             ],
-#                             'layout': dict(
-#                                 xaxis={'title': 'Day Of Year (DOY)'},
-#                                 yaxis={'title': 'NDVI'},
-#                                 # margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
-#                                 legend={'x': 0, 'y': 1},
-#                                 hovermode='closest'
-#                             )
-#                         }
-#                     ),
-#                 ],
-#                 className='six columns',
-#                 style={'margin-top': '30'}
-#             )
-#         ],
-#         className='row'
-#     ),
-#     ],
-#
-# )
 
 # TODO: see https://community.plotly.com/t/preserving-ui-state-like-zoom-in-dcc-graph-with-uirevision/15793
 #   about preventing auto resetting map with input (e.g., slider) change.
@@ -220,11 +193,48 @@ def map_selection(lc_ID, doy):
     dff = dff[dff['reference_date' ] == DOY2DATETIMEDICT[doy]]
     return gen_map(dff)
 
-# @app.callback(
-#     Output('ndvi-by-doy-scatter', 'figure'),
-#     [Input('lc-class-dropdown', 'value'),
-#      ]
-# )
+@app.callback(
+    Output('ndvi-by-doy-scatter', 'figure'),
+    [Input('lc-class-dropdown', 'value'),
+     Input('map-graph', 'hoverData')]
+)
+def scatter_update(lc_ID, hoverData):
+    dff = df.copy()
+    # Landcover class filter
+    dff = dff[dff['LC_code'] == int(lc_ID)]
+    # PointID filter from hoverData in mapbox
+    if hoverData is None:
+        return dash.no_update
 
+    pointID = hoverData['points'][0]['text']
+    dff = dff[dff['PointID'] == pointID]
+
+    # # Function for generating scatterplot
+    # def gen_scatter(map_data):
+    return {
+        'data': [
+            dict(
+                type='scattergl',
+                x=list(dff['reference_date']),
+                y=list(dff['ndvi']),
+                # text=list(dff['PointID']),
+                mode='lines+markers',
+                opacity=0.7,
+                marker={
+                    'size': 9,
+                    # 'line': {'width': 0.5,
+                    #          'color': 'white'}
+                },
+                # name=41
+            )  # for i in df.LC_code.unique()
+        ],
+        'layout': dict(
+            xaxis={'title': 'Day Of Year (DOY)'},
+            yaxis={'title': 'NDVI'},
+            # margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+            legend={'x': 0, 'y': 1},
+            hovermode='closest'
+        )
+    }
 if __name__ == '__main__':
     app.run_server(debug=True)

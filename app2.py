@@ -41,8 +41,9 @@ lc_options = [
 
 
 # Load mapbox token
-mapboxAccessToken = open(".mapbox_token", 'r').read()
-mapboxAccessToken = mapboxAccessToken.replace('"', '')
+mbt = open(".mapbox_token", 'r')
+mapboxAccessToken = mbt.read().replace('"', '')
+mbt.close()
 
 layout = dict(
     autosize=True,

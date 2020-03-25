@@ -43,8 +43,9 @@ app = dash.Dash(__name__, external_stylesheets=['https://cdn.rawgit.com/plotly/d
 server = app.server
 
 # Load mapbox token
-mapboxAccessToken = open(".mapbox_token", 'r').read()
-mapboxAccessToken = mapboxAccessToken.replace('"', '')
+mbt = open(".mapbox_token", 'r')
+mapboxAccessToken = mbt.read().replace('"', '')
+mbt.close()
 
 # Load datasets: Converted in external script from goeJSON to csv with x,y columns
 df = pd.read_csv(DATA_PATH.joinpath('lcDF.csv'), index_col=0, parse_dates=['variable'])
