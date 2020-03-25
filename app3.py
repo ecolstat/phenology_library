@@ -170,10 +170,39 @@ app.layout = dbc.Container(
         dbc.Row(
             [
                 dbc.Col(
-                    dcc.Graph(
-                        id='all-lc-scatter'
+                    dbc.Row(
+                        [
+                            dbc.Tabs(
+                                [
+                                    dbc.Tab(label='Scatter', tab_id='scatter'),
+                                    dbc.Tab(label='BoxPlot', tab_id='boxplot'),
+                                ],
+                                id='tabs',
+                            ),
+                            html.Div(id='tab-content', className='p-4'),
+                        ],
                     ),
+                    # dbc.Row(
+                    #     [
+                    #         html.Div(id='tab-content', className='p-4'),
+                    #     ]
+                    # ),
+                    # dbc.Tabs(
+                    #     [
+                    #         dbc.Tab(label='Scatter', tab_id='scatter'),
+                    #         dbc.Tab(label='BoxPlot', tab_id='boxplot'),
+                    #     ],
+                    #     id='tabs',
+                    # ),
                     md=6),
+                    # html.Div(id='tab-content', className='p-4'),
+
+                #     ],
+                # ),
+                    # dcc.Graph(
+                    #     id='all-lc-scatter'
+                    # ),
+                    # md=6),
 
                 dbc.Col(
                     dcc.Graph(
@@ -204,15 +233,40 @@ def map_selection(lc_ID, doy):
     return gen_map(dff)
 
 @app.callback(
-    Output('all-lc-scatter', 'figure'),
-    [Input('lc-class-dropdown', 'value')]
+    Output('tab-content', 'children'),
+    [Input('tabs', 'active_tab'),
+     Input('lc-class-dropdown', 'value')]
 )
-def lc_scatter_update(value):
+def render_tab_content(active_tab, value):
+
     dff = df.copy()
     # Landcover class filter
     dff = dff[dff['LC_code'] == int(value)]
-    dff['doy'] = dff['reference_date'].map(DATETIME2DOYDICT)
+    df['doy'] = df['reference_date'].map(DATETIME2DOYDICT)
 
+    if active_tab is not None:
+        if active_tab == 'scatter':
+            return  dcc.Graph(
+                        id='all-lc-scatter',
+                        figure=px.scatter(dff, x='doy', y='ndvi', trendline='lowess')
+                    ),
+        elif active_tab == 'boxplot':
+            return dcc.Graph(
+                        id='all-lc-scatter',
+                        figure=px.violin(dff, x='doy', y='ndvi', box=True)
+            ),
+
+# @app.callback(
+#     Output('all-lc-scatter', 'figure'),
+#     [Input('lc-class-dropdown', 'value')]
+# )
+# def lc_scatter_update(value):
+#     dff = df.copy()
+#     # Landcover class filter
+#     dff = dff[dff['LC_code'] == int(value)]
+#     dff['doy'] = dff['reference_date'].map(DATETIME2DOYDICT)
+#
+#     return px.scatter(dff, x='doy', y='ndvi', trendline='lowess')
     # return {
     #     'data': [
     #         dict(
@@ -238,7 +292,7 @@ def lc_scatter_update(value):
     #     )
     # }
     # return px.line(dff, x='doy', y='ndvi', line_shape='spline')
-    return px.scatter(dff, x='doy', y='ndvi', trendline='lowess')
+
 
 # def lc_scatter_update(value):
 #     dff = df.copy()
@@ -263,6 +317,16 @@ def lc_scatter_update(value):
 #     ))
 #     return fig
 
+# @app.callback(
+#     Output('all-lc-boxplot', 'figure'),
+#     [Input('lc-class-dropdown', 'value')]
+# )
+# def lc_scatter_update(value):
+#     dff = df.copy()
+#     # Landcover class filter
+#     dff = dff[dff['LC_code'] == int(value)]
+#     dff['doy'] = dff['reference_date'].map(DATETIME2DOYDICT)
+#     return px.violin(dff, x='doy', y='ndvi', box=True)
 
 @app.callback(
     Output('ndvi-by-doy-scatter', 'figure'),
