@@ -48,6 +48,7 @@ DOYLIST = [x.timetuple().tm_yday for x in dates_list]
 DOYDICT = dict(zip(DOYLIST, unique_dates))
 
 DOY2DATETIMEDICT = dict(zip(DOYLIST, df.reference_date.unique()))
+DATETIME2DOYDICT = dict(zip(df.reference_date.unique(), DOYLIST))
 
 # # For testing
 # lc_options = [

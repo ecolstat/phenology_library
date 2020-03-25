@@ -22,10 +22,13 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 import datashader as ds
 from datashader import transfer_functions as tf
+import numpy as np
+import scipy
+from scipy import signal
 
 
 # Multi-dropdown options
-from controls import NLCD_2011, DOYLIST, DOYDICT, DOY2DATETIMEDICT
+from controls import NLCD_2011, DOYLIST, DOYDICT, DOY2DATETIMEDICT, DATETIME2DOYDICT
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -208,27 +211,58 @@ def lc_scatter_update(value):
     dff = df.copy()
     # Landcover class filter
     dff = dff[dff['LC_code'] == int(value)]
+    dff['doy'] = dff['reference_date'].map(DATETIME2DOYDICT)
 
-    return {
-        'data': [
-            dict(
-                type='scattergl',
-                x=list(dff['reference_date']),
-                y=list(dff['ndvi']),
-                mode='markers',
-                opacity=0.7,
-                marker={
-                    'size': 6,
-                },
-            )
-        ],
-        'layout': dict(
-            xaxis={'title': 'Day Of Year (DOY)'},
-            yaxis={'title': 'NDVI'},
-            legend={'x': 0, 'y': 1},
-            hovermode='closest'
-        )
-    }
+    # return {
+    #     'data': [
+    #         dict(
+    #             type='scattergl',
+    #             x=list(dff['reference_date']),
+    #             y=list(dff['ndvi']),
+    #             # text=list(dff['PointID']),
+    #             mode='lines+markers',
+    #             opacity=0.7,
+    #             marker={
+    #                 'size': 5,
+    #                 'line': {'trendline': 'lowess'}
+    #             },
+    #
+    #         )
+    #     ],
+    #     'layout': dict(
+    #         xaxis={'title': 'Day Of Year (DOY)'},
+    #         yaxis={'title': 'NDVI'},
+    #         # margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+    #         legend={'x': 0, 'y': 1},
+    #         hovermode='closest'
+    #     )
+    # }
+    # return px.line(dff, x='doy', y='ndvi', line_shape='spline')
+    return px.scatter(dff, x='doy', y='ndvi', trendline='lowess')
+
+# def lc_scatter_update(value):
+#     dff = df.copy()
+#     # Landcover class filter
+#     dff = dff[dff['LC_code'] == int(value)]
+#     dff['doy'] = dff['reference_date'].map(DATETIME2DOYDICT)
+#     fig = go.Figure()
+#     fig.add_trace(go.Scatter(
+#         x = dff['doy'],
+#         y = dff['ndvi'],
+#         mode = 'markers',
+#         marker = dict(size=5),
+#         name='NDVI'
+#     ))
+#     fig.add_trace(go.Scatter(
+#         x = dff['doy'],
+#         y = signal.savgol_filter(dff['ndvi'],
+#                                  201,  # window size for filtering
+#                                  3), # order of fitted polynomial
+#         mode = 'lines',
+#         name = 'Savitzky-Golay'
+#     ))
+#     return fig
+
 
 @app.callback(
     Output('ndvi-by-doy-scatter', 'figure'),
