@@ -168,11 +168,18 @@ app.layout = dbc.Container(
             [
                 dbc.Col(
                     dcc.Graph(
+                        id='all-lc-scatter'
+                    ),
+                    md=6),
+
+                dbc.Col(
+                    dcc.Graph(
+                        # TODO: Fix y axis range
                         id='ndvi-by-doy-scatter'
                     ),
                     md=6),
             ],
-            align='left',
+            align='right',
         ),
     ],
     fluid=True,
@@ -192,6 +199,36 @@ def map_selection(lc_ID, doy):
     # DOY filter
     dff = dff[dff['reference_date' ] == DOY2DATETIMEDICT[doy]]
     return gen_map(dff)
+
+@app.callback(
+    Output('all-lc-scatter', 'figure'),
+    [Input('lc-class-dropdown', 'value')]
+)
+def lc_scatter_update(value):
+    dff = df.copy()
+    # Landcover class filter
+    dff = dff[dff['LC_code'] == int(value)]
+
+    return {
+        'data': [
+            dict(
+                type='scattergl',
+                x=list(dff['reference_date']),
+                y=list(dff['ndvi']),
+                mode='markers',
+                opacity=0.7,
+                marker={
+                    'size': 6,
+                },
+            )
+        ],
+        'layout': dict(
+            xaxis={'title': 'Day Of Year (DOY)'},
+            yaxis={'title': 'NDVI'},
+            legend={'x': 0, 'y': 1},
+            hovermode='closest'
+        )
+    }
 
 @app.callback(
     Output('ndvi-by-doy-scatter', 'figure'),
