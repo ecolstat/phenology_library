@@ -40,12 +40,16 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 server = app.server
 
+#
 # Load mapbox token
-# mapboxAccessToken = os.getenv('MAPBOX_TOKEN')
-# if not mapboxAccessToken:
-mbt = open(".mapbox_token", 'r')
-mapboxAccessToken = mbt.read().replace('"', '')
-mbt.close()
+# # mapboxAccessToken = os.getenv('MAPBOX_TOKEN')
+# # if not mapboxAccessToken:
+# mbt = open(".mapbox_token", 'r')
+# mapboxAccessToken = mbt.read().replace('"', '')
+# mbt.close()
+
+# Using the config var in heroku (https://devcenter.heroku.com/articles/config-vars)
+mapboxAccessToken = str(os.environ.get('MAPBOX_ACCESS_TOKEN'))
 
 # Load datasets: Converted in external script from goeJSON to csv with x,y columns
 df = pd.read_csv(DATA_PATH.joinpath('lcDF.csv'), index_col=0, parse_dates=['variable'])
