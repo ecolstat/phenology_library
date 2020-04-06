@@ -4,8 +4,7 @@ Testing out dash-bootstrap-components for layout and design.
 # -*- coding: utf-8 -*-
 
 """
-Building up phenology library app component by component based on the Dash
-tutorials rather than specifically a Dash example.
+Extending to larger points dataset
 
 """
 import pathlib
@@ -14,13 +13,13 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-# import plotly.graph_objects as go
+import plotly.graph_objects as go
 import plotly.express as px
 import os
 import copy
 import pandas as pd
 import dash_bootstrap_components as dbc
-# import datashader as ds
+import datashader as ds
 from datashader import transfer_functions as tf
 import numpy as np
 import scipy
@@ -48,13 +47,11 @@ mbt = open(".mapbox_token", 'r')
 mapboxAccessToken = mbt.read().replace('"', '')
 mbt.close()
 
-# Using the config var in heroku (https://devcenter.heroku.com/articles/config-vars)
+# # Using the config var in heroku (https://devcenter.heroku.com/articles/config-vars)
 # mapboxAccessToken = str(os.environ.get('MAPBOX_ACCESS_TOKEN'))
 
 # Load datasets: Converted in external script from goeJSON to csv with x,y columns
-#  NOTE: lcDF.csv for DRB, lcDF_conus.csv for conus
 df = pd.read_csv(DATA_PATH.joinpath('lcDF_conus.csv'), index_col=0, parse_dates=['variable'])
-
 df.columns = ['PointID', 'LC_code', 'reference_date', 'ndvi', 'lon', 'lat']
 
 # Create controls
@@ -118,38 +115,60 @@ controls = dbc.Row(
     form=True,
 )
 
-layout = dict(
-    autosize=True,
-    height=800,
-    font=dict(color="#191A1A"),
-    titlefont=dict(color="#191A1A", size='14'),
-    margin=dict(
-        l=0,
-        r=0,
-        b=35,
-        t=45
-    ),
-    hovermode="closest",
-    uirevision='never',
-    # plot_bgcolor='#fffcfc',
-    # paper_bgcolor='#fffcfc',
-    legend=dict(font=dict(size=10), orientation='h'),
-    title='Points represent center of sampling buffers',
-    mapbox=dict(
-        accesstoken=mapboxAccessToken,
-        style="light",
-        center=dict(
-            lon=-97.961,  # manually copied from the csv lon
-            lat=41.1188  # manually copied from the csv lat
-        ),
-        pitch=30,
-        zoom=5,
-    )
-)
+# layout = dict(
+#     autosize=True,
+#     height=700,
+#     font=dict(color="#191A1A"),
+#     titlefont=dict(color="#191A1A", size='14'),
+#     margin=dict(
+#         l=0,
+#         r=0,
+#         b=35,
+#         t=45
+#     ),
+#     hovermode="closest",
+#     uirevision='never',
+#     # plot_bgcolor='#fffcfc',
+#     # paper_bgcolor='#fffcfc',
+#     legend=dict(font=dict(size=10), orientation='h'),
+#     title='Points represent center of sampling buffers',
+#     mapbox=dict(
+#         accesstoken=mapboxAccessToken,
+#         style="light",
+#         center=dict(
+#             lon=-74.296787,  # manually copied from the csv lon
+#             lat=41.12487  # manually copied from the csv lat
+#         ),
+#         pitch=30,
+#         zoom=6,
+#     )
+# )
 
 # Function for generating the map
 def gen_map(map_data):
-    return {
+    # Create a datashader xarray object (agg)
+    cvs = ds.Canvas(plot_width=1000, plot_height=1000)
+    agg = cvs.points(map_data, x = 'lon', y = 'lat')
+
+    coords_lat, coords_lon = agg.coords['lat'].values, agg.coords['lon'].values
+
+    # Corners of the image, which need to be passed to mapbox
+    coordinates = [[coords_lon[0], coords_lat[0]],
+                   [coords_lon[-1], coords_lat[0]],
+                   [coords_lon[-1], coords_lat[-1]],
+                   [coords_lon[0], coords_lat[-1]]]
+
+    img = tf.shade(agg)[::-1].to_pil()
+
+    layers = [
+        {
+            'sourcetype': 'image',
+            'source': img,
+            'coordinates': coordinates
+        }
+    ]
+
+    map_graph =  {
         "data": [
             {
                 'type': 'scattermapbox',
@@ -173,8 +192,41 @@ def gen_map(map_data):
                 }
             }
         ],
-        "layout": layout
+        "layout": {
+                'autosize':True,
+                'height':700,
+                'font':dict(color="#191A1A"),
+                'titlefont':dict(color="#191A1A", size='14'),
+                'margin':dict(
+                    l=0,
+                    r=0,
+                    b=35,
+                    t=45
+                ),
+                'hovermode':"closest",
+                'uirevision':'never',
+                # 'plot_bgcolor':'#fffcfc',
+                # 'paper_bgcolor':'#fffcfc',
+                'legend':dict(font=dict(size=10), orientation='h'),
+                'title':'Points represent center of sampling buffers',
+                'mapbox':{
+                    'accesstoken': mapboxAccessToken,
+                    'style': "light",
+                    'layers': layers,
+                    'center': dict(
+                        lon=-74.296787,  # manually copied from the csv lon
+                        lat=41.12487  # manually copied from the csv lat
+                    ),
+                    # 'pitch':30,
+                    'zoom':6,
+                }
+        }
     }
+
+    return map_graph
+
+
+
 
 tabPlots = html.Div(
     [
@@ -261,10 +313,12 @@ def toggle_modal(n1, n2, is_open):
 )
 def map_selection(lc_ID, doy):
     dff = df.copy()
+
     # Landcover class filter
     dff = dff[dff['LC_code'] == int(lc_ID)]
     # DOY filter
     dff = dff[dff['reference_date' ] == DOY2DATETIMEDICT[doy]]
+
     return gen_map(dff)
 
 # Tabs, scatterplot and boxplot
@@ -291,7 +345,7 @@ def render_tab_content(active_tab, value):
         elif active_tab == 'boxplot':
             return dcc.Graph(
                         id='all-lc-boxplot',
-                        figure=px.violin(dff, x='doy', y='ndvi', box=True, points=False, range_y= [0, 10000]),
+                        figure=px.violin(dff, x='doy', y='ndvi', box=True, range_y= [0, 10000]),
                         responsive= True,
                         style=dict(height='100%', width='100%')
                     ),
